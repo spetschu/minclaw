@@ -7,10 +7,17 @@ ASSISTANT_SRC := ASSISTANT.md
 help:
 	@echo "Targets:"
 	@echo "  make testprep   - clean generated assistant state and copy BOOTSTRAP.md + ASSISTANT.md into $(TEST_VAULT)/"
-	@echo "  make testclean  - remove generated assistant files and untracked Daily test notes from $(TEST_VAULT)/"
+	@echo "  make testclean  - remove generated assistant files (including heartbeat logs) and untracked Daily test notes from $(TEST_VAULT)/"
 	@echo "  make teststatus - show current bootstrap test vault state"
 
 testclean:
+	@rm -f $(TEST_VAULT)/_assistant/Memory/Events.md
+	@rm -f $(TEST_VAULT)/_assistant/CRON_INSTALL.sh
+	@rm -f $(TEST_VAULT)/_assistant/heartbeat/HEARTBEAT_LOG.md
+	@rm -f $(TEST_VAULT)/_assistant/heartbeat/logs/cli-heartbeat.log
+	@rm -f $(TEST_VAULT)/_assistant/logs/heartbeat-cli.log
+	@rm -rf $(TEST_VAULT)/_assistant/heartbeat/logs
+	@rm -rf $(TEST_VAULT)/_assistant/logs
 	@rm -rf $(TEST_VAULT)/_assistant
 	@rm -f $(TEST_VAULT)/BOOTSTRAP.md
 	@rm -f $(TEST_VAULT)/BOOTSTRAP_DONE.md

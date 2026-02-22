@@ -135,8 +135,8 @@ For each interaction:
 On heartbeat:
 
 1. read `_assistant/HEARTBEAT.md`
-2. resolve target `job_id` (from cron/manual invocation)
-3. run the matching job
+2. evaluate what work is due now based on current time and cadence definitions
+3. run only due tasks
 4. update `_assistant/Memory/Working.md` when relevant
 
 ---
@@ -241,13 +241,23 @@ If skill-local code is required:
 
 `_assistant/HEARTBEAT.md` is the single scheduling/behavior contract for proactive work.
 
-MVP defaults:
+MVP model (LLM-first):
 
-- one hourly job (`job_id: hourly-maintenance`)
-- one daily job (`job_id: daily-summary`)
-- one weekly review job (`job_id: weekly-memory-structure-review`)
+- use one managed cron entry (single tick), defaulting to every 10 minutes
+- cron updates should use a full install command that rewrites only the managed heartbeat block in crontab
+- cron command generation should verify current CLI syntax from installed help output (for example `<cli> --help`, and subcommand help such as `codex exec --help`)
+- cron entries should use the AI CLI absolute binary path (resolved via `which`/`command -v`) to avoid PATH issues
+- for Node-backed CLIs, set cron-safe PATH inline to avoid `env: node: No such file or directory`
+- on wake, run the preferred CLI in non-interactive mode with prompt instructions to:
+  - read `_assistant/HEARTBEAT.md`
+  - resolve relative paths from vault root and treat `./ASSISTANT.md` as the assistant contract path
+  - follow heartbeat instructions exactly
 
-Cron should run the preferred CLI in non-interactive mode and pass an explicit `job_id`.
+Strict mode behavior (MVP):
+
+- if `HEARTBEAT.md` instructions are ambiguous or invalid, skip risky work and record a short summary entry
+- do not broaden cron cadence automatically
+- only tighten cron cadence when finer cadence is explicit in `HEARTBEAT.md`
 
 Scheduling enablement:
 
@@ -256,14 +266,22 @@ Scheduling enablement:
 
 Expected prompt shape:
 
-- `Read ./_assistant/HEARTBEAT.md and run job_id=<id>.`
+- `Read ./_assistant/HEARTBEAT.md and follow its instructions exactly. Resolve relative paths from vault root; assistant contract path is ./ASSISTANT.md.`
 
-Job modes:
+Heartbeat task modes (optional in `HEARTBEAT.md`):
 
-- `mode: system` for internal maintenance behavior
-- `mode: skill` for invoking a named skill
+- `mode: action` for executing inline heartbeat action text
+- `mode: skill` for invoking a named skill resolved via `_assistant/Skills/SKILLS.md` and that skill's `SKILL.md`
+
+Task grouping headers (for example `System Tasks`, `User Tasks`) are for readability only and do not change execution semantics.
 
 For memory-structure refactors, default to propose-first behavior (`suggest`) unless user explicitly opts into automatic restructuring.
+
+Heartbeat runtime should write both:
+
+- concise human-readable heartbeat summary (`_assistant/Memory/Events.md`)
+- raw CLI heartbeat log (`_assistant/logs/heartbeat-cli.log`), referenced from summaries when work or errors occur
+- latest generated cron install command (`_assistant/CRON_INSTALL.sh`) for quick copy/paste reruns
 
 ---
 
@@ -301,7 +319,7 @@ System is aligned when:
 4. `_assistant/Conversations/` exists with category folders and `Transcripts/`.
 5. `_assistant/Skills/SKILLS.md` exists and at least one example skill is present.
 6. Category policy and assistant behavior defaults are explicitly documented in `_assistant/Memory/Preferences.md`.
-7. Heartbeat defaults include hourly, daily, and weekly-memory-structure-review `job_id`s.
+7. Heartbeat defaults include at least one daily cadence and one test-friendly finer cadence in `_assistant/HEARTBEAT.md`.
 8. Bootstrap is one-time and marked by `BOOTSTRAP_DONE.md`.
 
 ---

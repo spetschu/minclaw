@@ -1,4 +1,4 @@
- An experiment in building an absolute minimalist claw. No code, all bootstrap.
+ An experiment in building an absolute minimalist claw.
 
  # Requirements
 
@@ -22,8 +22,8 @@ So basically Claud Code and friends, but with claw-like personal assitant capabi
 3. Prompt:
     "Follow the instructions in BOOTSTRAP.md to turn yourself into a claw-like personal assistant."
 
-Stricter kick off prompt:
-   "Read and execute BOOTSTRAP.md exactly, step by step. Start with Step 1 and do not skip ahead. Ask Step 2 questions in order, wait for my answers, then continue. Create/update only the files and folders specified by BOOTSTRAP.md, and show a brief checklist of what you changed after each step."
+Stricter kick off prompt (if the above doesn't work):
+   "Read and execute BOOTSTRAP.md exactly, step by step. Start with Step 1 and do not skip ahead. Create/update only the files and folders specified by BOOTSTRAP.md, and show a brief checklist of what you changed after each step."
 
 
 # Manual Test Loop
@@ -38,7 +38,11 @@ Use the synthetic fixture vault in `test_vault/` for repeatable manual smoke tes
 4. Check current fixture state:
    `make teststatus`
 
-# TODO
+# Heartbeat Runtime
 
-- finish heartbeat/recurring items
-- think through skills and how they relate to the CLIs skills
+Heartbeat scheduling/runtime is intentionally zero-code in MVP:
+
+- one cron entry wakes up whatever AI coding CLI you're using (claude, codex, gemini-cli) every 10 minutes
+- the CLI reads `_assistant/HEARTBEAT.md` and executes what is due now
+   - summary log: `_assistant/Memory/Events.md`
+   - raw CLI wake log: `_assistant/logs/heartbeat-cli.log`

@@ -139,15 +139,29 @@ _assistant/HEARTBEAT.md
 
 Heartbeat may:
 
-- run the requested `job_id` routine from `HEARTBEAT.md`
+- evaluate `HEARTBEAT.md` against current time and execute only tasks that are due now
 - make bounded, useful updates aligned with user preferences
 - refresh `_assistant/Memory/Working.md` when needed
 - propose memory-structure refactors when current headings become unhelpful
 
-Heartbeat job modes:
+Heartbeat interpretation:
 
-- `mode: system` -> run internal maintenance behavior
-- `mode: skill` -> invoke the named skill from `/_assistant/Skills/`
+- single cron tick wake-ups are expected (default every 10 minutes unless configured finer)
+- on each wake-up, determine due tasks from `HEARTBEAT.md` and run only those tasks
+- resolve relative paths from vault root during heartbeat runs; assistant contract is `./ASSISTANT.md`
+- treat heartbeat section/group headings as visual organization only; execute based on per-task fields
+- mode semantics:
+  - `mode: action` executes the task `action:` directly
+  - `mode: skill` resolves skill via `/_assistant/Skills/SKILLS.md` and then executes the referenced `SKILL.md`
+  - only report a skill as missing after checking both the skills index and the referenced file path
+- before running tasks, compare heartbeat minute cadence needs vs current cron tick and tighten cron cadence when finer granularity is explicitly required
+- when configuring or changing heartbeat cron, provide a full copy-paste `crontab` install/update command (not just a cron line)
+- when configuring CLI invocation flags for cron, verify current supported args from installed help output (for example `<cli> --help` and non-interactive subcommand help)
+- when configuring cron commands, resolve the active CLI path first and use the absolute binary path
+- for Node-backed CLIs, include a cron-safe PATH so `node` can be resolved in non-interactive cron shells
+- store the latest generated cron install command in `_assistant/CRON_INSTALL.sh` for quick re-run/copy-paste
+- keep `_assistant/Memory/Events.md` concise; write short summaries only when work was done or errors occurred
+- include references to `_assistant/logs/heartbeat-cli.log` when writing heartbeat summaries
 
 Default maintenance pattern includes a weekly memory-structure review in suggest mode.
 

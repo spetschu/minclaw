@@ -54,11 +54,16 @@ Create the following directory tree if it does not exist:
 /_assistant/
   HEARTBEAT.md
   USER.md
+  CRON_INSTALL.sh
 
   /Memory/
     Working.md
     Preferences.md
     LongTerm.md
+    Events.md
+
+  /logs/
+    heartbeat-cli.log
 
   /Conversations/
     Transcripts/
@@ -112,16 +117,31 @@ prepend this single line at the top (without replacing the rest of the file):
 
 ## STEP 5 - Create HEARTBEAT.md
 
-Create `_assistant/HEARTBEAT.md` with default jobs and IDs:
+Create `_assistant/HEARTBEAT.md` with a minimal LLM-first template:
 
 ```md
 # HEARTBEAT
 
-## Jobs
+## Runtime Rules
 
-### hourly-maintenance
-- cadence: hourly
-- mode: system
+- base_tick_minutes: 10
+- minute cadence rule: minute-based cadences must be one of 5,10,15,20,30,60
+- wake behavior: on each heartbeat wake, read `ASSISTANT.md` + this file, tighten cron cadence only when a finer minute cadence is explicitly required, run only tasks due now, then exit
+- path resolution: resolve relative paths from vault root; assistant contract path is `./ASSISTANT.md` (not `./_assistant/ASSISTANT.md`)
+- cron setup visibility: run `crontab -l` to view the currently installed heartbeat entry
+- cron install command cache: `_assistant/CRON_INSTALL.sh` stores the latest generated install command for quick copy/paste
+- logging: only write short summaries to `_assistant/Memory/Events.md` when work is done or errors occur; include references to `_assistant/logs/heartbeat-cli.log`
+- section labels (for example `System Tasks`, `User Tasks`) are organizational only; scheduling behavior is defined by each task block
+- mode semantics:
+  - `mode: action` -> execute the task's `action:` directly
+  - `mode: skill` -> resolve the skill from `_assistant/Skills/SKILLS.md`, then load and execute that skill's `SKILL.md`
+  - do not report missing skill until both index and skill file path are checked
+
+## System Tasks
+
+### tick-maintenance
+- cadence: every-10-minutes
+- mode: action
 - action: review recent conversations, refresh `_assistant/Memory/Working.md`, and suggest category adjustments when patterns drift
 
 ### daily-summary
@@ -132,9 +152,18 @@ Create `_assistant/HEARTBEAT.md` with default jobs and IDs:
 
 ### weekly-memory-structure-review
 - cadence: weekly
-- mode: system
+- mode: action
 - action: inspect current memory file contents and propose a cleaner structure when it would improve usefulness
 - write_mode: suggest
+
+## User Tasks (Template)
+
+### example-morning-news
+- cadence: daily
+- at: 08:00
+- mode: skill
+- skill: morning-news
+- output: `Daily/YYYY-MM-DD-news.md`
 ```
 
 Use the machine timezone detected during bootstrap (or existing timezone preference if already present).
@@ -180,6 +209,7 @@ Create these files with starter structure (not blank):
 - `_assistant/Memory/Working.md`
 - `_assistant/Memory/Preferences.md`
 - `_assistant/Memory/LongTerm.md`
+- `_assistant/Memory/Events.md`
 
 `_assistant/Memory/Working.md`
 ```md
@@ -229,10 +259,18 @@ Create these files with starter structure (not blank):
 - 
 ```
 
+`_assistant/Memory/Events.md`
+```md
+# Events
+
+- 2026-01-01 09:00 Local: Initialized events log.
+```
+
 Requirements:
 
 - `Working.md` is short-term and volatile; prefer rewriting over appending.
 - `LongTerm.md` stores durable non-preference facts and should be periodically compacted.
+- `Events.md` stores concise operational summaries (for example heartbeat runs and setup outcomes); keep entries short and periodically trim to recent history.
 - `Preferences.md` must include a prominent section named `Conversation Categories` that contains:
   - current category list
   - default category
@@ -409,21 +447,71 @@ Only run this step if the user enabled heartbeat scheduling in Step 2.
 
 If heartbeat is disabled, skip cron setup and proceed to Step 10.
 
-If heartbeat is enabled, infer a non-interactive CLI command pattern and configure cron entries that pass explicit `job_id` values:
+If heartbeat is enabled, infer a non-interactive CLI command pattern for the AI coding CLI they are currently using (e.g. claude, codex, gemini-cli) and configure one managed cron tick entry (default every 10 minutes), with no extra runtime code.
 
-- hourly: `job_id=hourly-maintenance`
-- daily: `job_id=daily-summary`
-- weekly: `job_id=weekly-memory-structure-review`
-
-Each cron entry should:
+The managed entry should:
 
 - change directory to the vault root first
-- launch the CLI in non-interactive mode
+- ensure `_assistant/logs/` exists
+- verify current CLI command syntax from installed help output before generating cron commands:
+  - `<cli> --help`
+  - non-interactive subcommand help when applicable (for example `codex exec --help`)
+- verify the currently supported one-shot/non-interactive invocation and approval-bypass flags from help output
+- never assume flags are universal across CLIs/versions (for example, do not assume `--prompt` or `--yolo` unless confirmed)
+- resolve the active CLI binary path first (`which <cli>` or `command -v <cli>`) and use the absolute path in cron entries
+- if the CLI is Node-backed (common for Codex/Gemini/Claude CLIs), resolve `node` too and set a cron-safe PATH inline (cron PATH is minimal):
+  - detect node directory from `command -v node` and prepend it in PATH
+  - include common bin dirs such as `/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin`
+  - when applicable, include user-managed Node shim dirs (for example `~/.volta/bin` or `~/.nvm/.../bin`) if that is where `node` resolves
+- prevent the common failure: `env: node: No such file or directory`
+- launch the active CLI in non-interactive mode with permissive/auto-approval flags (e.g. `--yolo` or equivalent if supported)
+- keep the launcher prompt minimal and delegate behavior to `_assistant/HEARTBEAT.md`
 - use a prompt equivalent to:
 
-`Read ./_assistant/HEARTBEAT.md and run job_id=<id>.`
+`Read ./_assistant/HEARTBEAT.md and follow its instructions exactly. Resolve relative paths from vault root; assistant contract path is ./ASSISTANT.md.`
 
-If direct cron installation is not possible, output ready-to-paste cron lines.
+Example managed entry (Gemini):
+
+```cron
+*/10 * * * * cd /path/to/vault && mkdir -p _assistant/logs && env PATH="/full/path/to/node/bin:/opt/homebrew/bin:/usr/bin:/bin" /full/path/to/gemini --yolo --prompt "Read ./_assistant/HEARTBEAT.md and follow its instructions exactly. Resolve relative paths from vault root; assistant contract path is ./ASSISTANT.md." >> _assistant/logs/heartbeat-cli.log 2>&1
+```
+
+Write heartbeat outputs in both forms:
+
+- concise summary log: `_assistant/Memory/Events.md`
+- raw CLI wake log: `_assistant/logs/heartbeat-cli.log`
+
+Cron install flow:
+
+- this step is often tricky in real environments; collaborate with the user and iterate until it works
+- attempt to install/update the managed block directly by running the generated install command
+- save the exact generated install command to `_assistant/CRON_INSTALL.sh` before running it
+- verify success immediately with `crontab -l` and confirm the managed block is present
+- run an immediate post-install validation by executing the managed command once in a cron-like shell environment (minimal env + explicit PATH)
+- inspect `_assistant/logs/heartbeat-cli.log` right away for startup/runtime errors
+- if validation fails, adjust command/flags/PATH and retry once before falling back
+- only if direct install fails, provide copy-paste install command(s) to the user
+
+When installing/updating, use block markers:
+
+- `# >>> MINCLAW HEARTBEAT START >>>`
+- `# <<< MINCLAW HEARTBEAT END <<<`
+
+Preferred install command pattern:
+
+```sh
+( crontab -l 2>/dev/null | sed '/# >>> MINCLAW HEARTBEAT START >>>/,/# <<< MINCLAW HEARTBEAT END <<</d'; printf '%s\n' '# >>> MINCLAW HEARTBEAT START >>>' '*/10 * * * * cd /path/to/vault && mkdir -p _assistant/logs && env PATH="/full/path/to/node/bin:/opt/homebrew/bin:/usr/bin:/bin" /full/path/to/gemini --yolo --prompt "Read ./_assistant/HEARTBEAT.md and follow its instructions exactly. Resolve relative paths from vault root; assistant contract path is ./ASSISTANT.md." >> _assistant/logs/heartbeat-cli.log 2>&1' '# <<< MINCLAW HEARTBEAT END <<<' ) | crontab -
+```
+
+If direct cron installation is not possible, then output ready-to-paste install command(s) as fallback. Only output bare cron lines when explicitly requested.
+
+Preferred post-install validation pattern:
+
+```sh
+cmd="$(crontab -l | sed -n '/# >>> MINCLAW HEARTBEAT START >>>/,/# <<< MINCLAW HEARTBEAT END <<</p' | grep -v '^#' | head -n1 | sed -E 's/^[^ ]+ [^ ]+ [^ ]+ [^ ]+ [^ ]+ //')"
+env -i HOME="$HOME" SHELL=/bin/sh PATH="/full/path/to/node/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin" /bin/sh -lc "$cmd"
+tail -n 80 ./_assistant/logs/heartbeat-cli.log
+```
 
 ---
 
