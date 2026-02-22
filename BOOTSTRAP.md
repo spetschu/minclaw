@@ -17,48 +17,32 @@ If not, continue.
 
 ## STEP 2 - Ask the User These Questions
 
-Run this step in two passes.
-
 Ask one question at a time (not as a single block).
 After each answer, confirm the effective value.
 If user leaves a value blank, apply the default shown below.
 
-Pass A - Ask these first:
+Ask only these four setup questions:
 
 1. Default conversation category for uncategorized content? (default: `Misc`)
-2. Memory updates mode: `suggest` or `auto`? (default: `suggest`)
-3. Transcript saving mode: `suggest`, `auto`, or `off-by-default`? (default: `suggest`)
-4. Require confirmation for risky actions outside assistant-owned files/folders? (`yes`/`no`, default: `yes`)
-5. Timezone for scheduling? (default: current machine timezone)
-6. Enable heartbeat scheduling now? (`yes`/`no`, default: `no`)
-7. If heartbeat is enabled: which non-interactive CLI command pattern should heartbeat use?  
-   - first infer the current CLI and suggest a default command pattern
-   - ask user to accept or edit it
+2. How cautious should assistant be about edits to notes outside `/_assistant/`? (user can describe preference or choose: `never`, `ask`, `sometimes`, `yolo`; default: `ask`)
+3. Enable heartbeat scheduling now? (`yes`/`no`, default: `no`)
+4. Tell me how you use and organize your notes. How do you use folders/tags, and what note-taking techniques do you use, if any? (or `skip`)
 
-After Pass A answers are received, do a lightweight read-only analysis of the markdown notes vault:
+Do not ask additional setup questions.
+Do not create or modify `/_assistant/**` files in Step 2.
+Carry these answers forward and write them in later steps:
+
+- Step 4: write runtime settings to `ASSISTANT.md`
+- Step 7: write behavior defaults and note-organization preferences to `_assistant/Memory/Preferences.md`
+
+After these four answers are received, do a lightweight read-only analysis of the markdown notes vault:
 
 - top-level folders
 - common subfolder patterns
 - tag usage (if present)
 - daily note patterns (if present)
 
-Then ask Pass B:
-
-8. In 1-3 sentences, describe how you organize and think about your notes (saved to `_assistant/Memory/Preferences.md`). We can evolve this later. Ask targeted follow-ups only if needed:
-   - Do you use daily notes? How much and for what?
-   - Do you organize mainly by folders/sub-folders, by tags, or both?
-   - Are there any hard categories or directory structures you want strictly enforced?
-
-If the vault has little/no clear structure and user has no strong preference, suggest starter categories:
-
-- `Daily`
-- `Home`
-- `Work`
-- `Hobbies`
-
-and ask for confirmation.
-
-Wait for answers before proceeding.
+Make use of the user's answers about how they think about their notes along with this analysis to create initial organization and behavior defaults and carry them forward.  
 
 ---
 
@@ -84,9 +68,11 @@ Create the following directory tree if it does not exist:
 
   /Skills/
     SKILLS.md
-    /daily-conversation-summary/
+    /summarize-day/
       SKILL.md
-    /memory-compact/
+    /summarize-conversation/
+      SKILL.md
+    /compact-assistant/
       SKILL.md
 ```
 
@@ -95,7 +81,7 @@ Rules:
 - Create conversation category folders from the category model inferred from the user's vault structure and their answers.
 - Ensure the selected default category folder exists under `/_assistant/Conversations/`.
 - Do not literally create `<category-1>` or `<category-2>` folders; replace those placeholders with real category names.
-- If inferred categories are sparse or unclear, ask for 3-7 starter categories and create those.
+- If inferred categories are sparse or unclear, initialize starter categories automatically: `Daily`, `Home`, `Work`, `Hobbies`, `Misc`.
 - If no category decision is made, use `Misc` as the default category.
 
 ---
@@ -108,12 +94,9 @@ Do not rewrite it from scratch.
 Update or append only a `## Runtime Configuration` section in `ASSISTANT.md` with finalized values from Step 2:
 
 - Default category
-- Memory updates mode
-- Transcript saving mode
-- Risky action confirmation mode
-- Timezone
+- Outside `_assistant/` note edits mode
 - Heartbeat scheduling enabled/disabled
-- Heartbeat CLI command pattern (if enabled)
+- Heartbeat CLI command pattern (auto-inferred if enabled)
 
 If any of these files already exist in the vault root:
 
@@ -144,7 +127,7 @@ Create `_assistant/HEARTBEAT.md` with default jobs and IDs:
 ### daily-summary
 - cadence: daily
 - mode: skill
-- skill: daily-conversation-summary
+- skill: summarize-day
 - output: day summary note + suggested updates for `_assistant/Memory/LongTerm.md`
 
 ### weekly-memory-structure-review
@@ -154,7 +137,7 @@ Create `_assistant/HEARTBEAT.md` with default jobs and IDs:
 - write_mode: suggest
 ```
 
-Use the user's timezone.
+Use the machine timezone detected during bootstrap (or existing timezone preference if already present).
 Always create this file, even if heartbeat scheduling is disabled for now.
 
 ---
@@ -185,7 +168,7 @@ Initialize it with this skeleton:
 - 
 ```
 
-Then fill only concise, user-confirmed facts (no speculation).
+Then fill only concise, user-confirmed facts (no speculation), except machine-detected timezone may be filled directly.
 Do not infer communication style from writing tone; unknown fields should remain blank or `Unknown`.
 
 ---
@@ -223,8 +206,13 @@ Create these files with starter structure (not blank):
 ## Routing Rules (folders/tags)
 - 
 
+## Assistant Behavior Defaults
+- Memory updates mode: suggest
+- Transcript saving mode: suggest
+- Timezone:
+
 ## Collaboration Preferences
-- 
+- Note organization model:
 ```
 
 `_assistant/Memory/LongTerm.md`
@@ -250,6 +238,11 @@ Requirements:
   - default category
   - folder/tag routing cues
   - any hard constraints for categorization
+- `Preferences.md` must also include `Assistant Behavior Defaults` with:
+  - memory updates mode (default: `suggest`)
+  - transcript saving mode (default: `suggest`)
+  - timezone (default: current machine timezone)
+- `Collaboration Preferences` should include a short, inferred note-organization model from vault analysis (user-editable).
 - weekly heartbeat should review memory structure and propose refactors when organization becomes unhelpful
 
 Treat categories as a slowly changing dimension: evolve carefully over time, keep top-level category count human-scale (single digits to low dozens), and avoid unnecessary churn.
@@ -258,10 +251,11 @@ Treat categories as a slowly changing dimension: evolve carefully over time, kee
 
 ## STEP 8 - Initialize Skills
 
-Create `_assistant/Skills/SKILLS.md` as a lightweight index (not a how-to manual) and seed two starter example skills:
+Create `_assistant/Skills/SKILLS.md` as a lightweight index (not a how-to manual) and seed three starter example skills:
 
-- `_assistant/Skills/daily-conversation-summary/SKILL.md`
-- `_assistant/Skills/memory-compact/SKILL.md`
+- `_assistant/Skills/summarize-day/SKILL.md`
+- `_assistant/Skills/summarize-conversation/SKILL.md`
+- `_assistant/Skills/compact-assistant/SKILL.md`
 
 Initialize `_assistant/Skills/SKILLS.md` with:
 
@@ -272,20 +266,24 @@ This file is a registry of available skills and where they live.
 
 ## Skills
 
-- `daily-conversation-summary`
-  - path: `_assistant/Skills/daily-conversation-summary/SKILL.md`
-  - purpose: summarize recent conversations into concise daily notes
+- `summarize-day`
+  - path: `_assistant/Skills/summarize-day/SKILL.md`
+  - purpose: summarize recent conversations into concise Daily notes in `_assistant/Daily` following the naming conventions for Daily notes.
 
-- `memory-compact`
-  - path: `_assistant/Skills/memory-compact/SKILL.md`
-  - purpose: compact `_assistant/Memory/LongTerm.md` while preserving important facts
+- `summarize-conversation`
+  - path: `_assistant/Skills/summarize-conversation/SKILL.md`
+  - purpose: save the current conversation to the best-fit category under `_assistant/Conversations/` with best-effort conversation boundaries
+
+- `compact-assistant`
+  - path: `_assistant/Skills/compact-assistant/SKILL.md`
+  - purpose: compact assistant memory files while preserving important facts
 ```
 
-Initialize `_assistant/Skills/daily-conversation-summary/SKILL.md` with:
+Initialize `_assistant/Skills/summarize-day/SKILL.md` with:
 
 ```md
 ---
-name: daily-conversation-summary
+name: summarize-day
 description: Summarize recent conversation activity into a concise daily summary with suggested long-term memory updates.
 ---
 
@@ -311,32 +309,75 @@ description: Summarize recent conversation activity into a concise daily summary
 
 - prefer concise bullet summaries
 - avoid speculation
-- cite source conversations by filename when possible
+- cite source conversations by filename when possible using `[[wikilinks]]`
 ```
 
-Initialize `_assistant/Skills/memory-compact/SKILL.md` with:
+Initialize `_assistant/Skills/summarize-conversation/SKILL.md` with:
 
 ```md
 ---
-name: memory-compact
-description: Compact long-term memory by removing redundancy and preserving durable, high-value facts.
+name: summarize-conversation
+description: Save the current conversation as a categorized conversation note with best-effort conversation boundaries.
 ---
 
-# Memory Compact
+# Summarize Conversation
+
+## When to use
+
+- when user invokes `a:summarize-conversation`
+- when user explicitly asks to save/summarize the current conversation
+
+## Inputs
+
+- current conversation in this session
+- `_assistant/Memory/Preferences.md` for category policy
+- `_assistant/Memory/Working.md` for current context
+
+## Process
+
+1. Determine the most appropriate category from conversation content and category policy.
+2. Determine a best-effort conversation boundary for what to include now.
+3. Save a concise summary note to `/_assistant/Conversations/<Category>/YYYY-MM-DD_short_generated_name.md`.
+4. Use `[[wikilinks]]` when referencing vault markdown notes.
+5. If category or boundary is uncertain, choose the best fit and include one short uncertainty note.
+
+## Outputs
+
+- saved conversation note under the chosen category
+- optional prompt to also save a full transcript in `/_assistant/Conversations/Transcripts/` (based on transcript mode)
+
+## Constraints
+
+- prioritize useful summary over verbatim transcript
+- avoid speculation
+- preserve key decisions, requests, and next actions
+```
+
+Initialize `_assistant/Skills/compact-assistant/SKILL.md` with:
+
+```md
+---
+name: compact-assistant
+description: Compact assistant memory by removing redundancy and preserving durable, high-value facts.
+---
+
+# Compact Assistant Memory
 
 ## When to use
 
 - on hourly/daily maintenance when memory grows noisy
-- when user asks to compact long-term memory
+- when user asks to compact assistant memory
 
 ## Inputs
 
 - `_assistant/Memory/LongTerm.md`
+- `_assistant/Memory/Working.md` (optional for context)
+- `_assistant/Memory/Preferences.md` (optional for preference elevation)
 - relevant recent conversation summaries (if available)
 
 ## Outputs
 
-- rewritten, cleaner `_assistant/Memory/LongTerm.md`
+- rewritten, cleaner assistant memory files (typically `_assistant/Memory/LongTerm.md`)
 - optional note of major merges/removals
 
 ## Constraints
@@ -351,6 +392,8 @@ Skill rules:
 - each skill lives at `/_assistant/Skills/<skill-name>/SKILL.md`
 - keep `SKILLS.md` as an index only (name, path, purpose)
 - when user asks "add a skill", create/update the folder and update `SKILLS.md`
+- for explicit skill invocations, use portable named commands in the form `a:<command-name>` instead of slash-menu dependencies
+- when referring to markdown files in the vault, prefer `[[wikilinks]]` over backticked file paths
 - if a skill requires local executable code, default entrypoint names to:
   - `run.py` (preferred)
   - `run.sh` (fallback)
@@ -366,7 +409,7 @@ Only run this step if the user enabled heartbeat scheduling in Step 2.
 
 If heartbeat is disabled, skip cron setup and proceed to Step 10.
 
-If heartbeat is enabled, use the user-provided CLI command pattern to configure cron entries that pass explicit `job_id` values:
+If heartbeat is enabled, infer a non-interactive CLI command pattern and configure cron entries that pass explicit `job_id` values:
 
 - hourly: `job_id=hourly-maintenance`
 - daily: `job_id=daily-summary`

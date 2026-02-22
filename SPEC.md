@@ -49,13 +49,9 @@ If `BOOTSTRAP_DONE.md` exists, bootstrap must stop.
 Bootstrap gathers:
 
 1. default conversation category
-2. memory write mode (`suggest` or `auto`)
-3. transcript mode (`suggest`, `auto`, or `off-by-default`)
-4. confirmation policy for risky actions outside assistant-owned scope
-5. timezone
-6. whether heartbeat scheduling should be enabled now (default no)
-7. non-interactive CLI command pattern for heartbeat cron (if enabled)
-8. user mental model for note organization
+2. edit-caution policy for notes outside `/_assistant/` (`never`, `ask`, `sometimes`, `yolo`; default `ask`)
+3. whether heartbeat scheduling should be enabled now (default no)
+4. note-organization style/preferences (folders, tags, techniques; can be skipped)
 
 Bootstrap questioning behavior:
 
@@ -63,13 +59,19 @@ Bootstrap questioning behavior:
 - apply defaults when user leaves values blank
 - defaults:
   - default category: `Misc`
-  - memory mode: `suggest`
-  - transcript mode: `suggest`
-  - risky action confirmation: `yes`
-  - timezone: current machine timezone
+  - outside `/_assistant/` note edits mode: `ask`
   - heartbeat scheduling: `no`
-- if heartbeat is enabled, infer current CLI and suggest a default command pattern for user confirmation
-- if vault structure is sparse and user has no preference, suggest starter categories: `Daily`, `Home`, `Work`, `Hobbies`
+- do not ask additional setup questions
+- do not create or modify `/_assistant/**` files during question-asking
+- if heartbeat is enabled, infer a default non-interactive CLI command pattern automatically
+- if vault structure is sparse or unclear, initialize starter categories automatically: `Daily`, `Home`, `Work`, `Hobbies`, `Misc`
+- carry inferred settings forward and write them during later steps (not during question-asking):
+  - write runtime settings to `ASSISTANT.md` in Step 4
+  - write behavior defaults and note-organization preferences to `_assistant/Memory/Preferences.md` in Step 7
+  - note organization model summary from user answer + vault structure
+  - memory updates mode: `suggest`
+  - transcript saving mode: `suggest`
+  - timezone: current machine timezone
 
 Bootstrap also performs lightweight read-only vault analysis:
 
@@ -83,7 +85,7 @@ Bootstrap completes by renaming:
 
 - `BOOTSTRAP.md` -> `BOOTSTRAP_DONE.md`
 
-During install, `ASSISTANT.md` should be updated in-place (not regenerated) via a `Runtime Configuration` section.
+During install, `ASSISTANT.md` should be updated in-place (not regenerated) via a `Runtime Configuration` section, and behavior defaults should be initialized in `_assistant/Memory/Preferences.md`.
 
 ---
 
@@ -124,9 +126,11 @@ The host model follows `ASSISTANT.md` rules.
 For each interaction:
 
 1. choose/confirm a conversation category
-2. write/update conversation artifacts under `_assistant/Conversations/`
-3. refresh `_assistant/Memory/Working.md` (short and current)
-4. follow `suggest` vs `auto` write mode
+2. proactively search likely relevant vault notes for applicable requests and ground the response in found content
+3. ask the user to identify a source note only when multiple plausible notes conflict or no relevant note is found
+4. write/update conversation artifacts under `_assistant/Conversations/`
+5. refresh `_assistant/Memory/Working.md` (short and current)
+6. follow `suggest` vs `auto` write mode
 
 On heartbeat:
 
@@ -149,6 +153,7 @@ On heartbeat:
 
 - user collaboration and organizational preferences
 - includes a prominent `Conversation Categories` section
+- includes `Assistant Behavior Defaults` (memory updates mode, transcript saving mode, timezone)
 - category policy here is user-editable and authoritative
 
 ### 5.3 `_assistant/Memory/LongTerm.md`
@@ -198,9 +203,41 @@ Transcript saving may be:
 - `auto`
 - or disabled except on explicit request (if user chooses)
 
+The transcript mode default should be stored in `_assistant/Memory/Preferences.md` (`Assistant Behavior Defaults`).
+
 ---
 
-## 8. Heartbeat Scheduling and Job Model
+## 8. Skills
+
+Skills are user-extensible capabilities stored in:
+
+- `/_assistant/Skills/<skill-name>/SKILL.md`
+
+`_assistant/Skills/SKILLS.md` is an index/registry only (name, path, purpose), not a how-to guide.
+
+Bootstrap should seed these starter skills:
+
+- `summarize-day`
+- `summarize-conversation` (invoked explicitly via `a:summarize-conversation`)
+- `compact-assistant`
+
+When user asks to add a skill, assistant should:
+
+1. create/update the skill folder and `SKILL.md`
+2. update `SKILLS.md`
+3. keep instructions concise and executable
+4. use existing local skills as style examples
+
+If skill-local code is required:
+
+- default entrypoint names:
+  - `run.py` (preferred)
+  - `run.sh` (fallback)
+- prefer `uv` + Python for real code paths unless shell is clearly simpler
+
+---
+
+## 9. Heartbeat Scheduling and Job Model
 
 `_assistant/HEARTBEAT.md` is the single scheduling/behavior contract for proactive work.
 
@@ -230,30 +267,6 @@ For memory-structure refactors, default to propose-first behavior (`suggest`) un
 
 ---
 
-## 9. Skills
-
-Skills are user-extensible capabilities stored in:
-
-- `/_assistant/Skills/<skill-name>/SKILL.md`
-
-`_assistant/Skills/SKILLS.md` is an index/registry only (name, path, purpose), not a how-to guide.
-
-When user asks to add a skill, assistant should:
-
-1. create/update the skill folder and `SKILL.md`
-2. update `SKILLS.md`
-3. keep instructions concise and executable
-4. use existing local skills as style examples
-
-If skill-local code is required:
-
-- default entrypoint names:
-  - `run.py` (preferred)
-  - `run.sh` (fallback)
-- prefer `uv` + Python for real code paths unless shell is clearly simpler
-
----
-
 ## 10. Safety Boundaries
 
 Default write scope:
@@ -261,7 +274,14 @@ Default write scope:
 - `ASSISTANT.md`
 - `_assistant/**`
 
-Outside this scope, require confirmation.
+By default (`ask` mode), outside this scope requires confirmation.
+
+External notes edit policy is configured in `ASSISTANT.md` Runtime Configuration:
+
+- `never`: never edit outside `/_assistant/`; suggest only
+- `ask`: require confirmation before outside edits (default)
+- `sometimes`: allow low-risk outside edits when clearly requested; ask on ambiguity
+- `yolo`: allow direct outside edits when clearly useful and aligned
 
 Hard rules:
 
@@ -280,18 +300,23 @@ System is aligned when:
 3. `_assistant/Memory/Working.md`, `_assistant/Memory/Preferences.md`, and `_assistant/Memory/LongTerm.md` are initialized with clear roles.
 4. `_assistant/Conversations/` exists with category folders and `Transcripts/`.
 5. `_assistant/Skills/SKILLS.md` exists and at least one example skill is present.
-6. Category policy is explicitly documented in `_assistant/Memory/Preferences.md`.
+6. Category policy and assistant behavior defaults are explicitly documented in `_assistant/Memory/Preferences.md`.
 7. Heartbeat defaults include hourly, daily, and weekly-memory-structure-review `job_id`s.
 8. Bootstrap is one-time and marked by `BOOTSTRAP_DONE.md`.
 
 ---
 
-## 12. Wishlist
+## 12. TODO
 
-Future enhancements (post-MVP):
+Near-term follow-ups:
 
-1. Add a slash command for explicit conversation saving (example: `/save-conversation`).
-2. Instruct assistant to infer conversation boundaries as reliably as possible (where a conversation starts/ends).
-3. Instruct assistant to infer best-fit category for each saved conversation, with user confirmation when uncertain.
+1. Default transcript behavior to auto-save full transcripts (replace repeated per-turn save prompts).
+2. Add hourly transcript compaction to keep transcript context bounded and useful.
+3. Add an explicit named command (for example: `a:save-summary`) for on-demand summary save.
+4. Tune retrieval heuristics for note-grounded requests (ranking, ambiguity handling, and fallback behavior).
+5. Add a bootstrap rule to check existing skills before creating new ones (update or alias instead of duplicating).
+6. Defer native CLI command mapping work until more cross-CLI testing shows clear value.
+7. Instruct assistant to infer conversation boundaries as reliably as possible (where a conversation starts/ends).
+8. Instruct assistant to infer best-fit category for each saved conversation, with user confirmation when uncertain.
 
 END.
