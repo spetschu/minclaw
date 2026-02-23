@@ -1,19 +1,20 @@
- An experiment in building an absolute minimalist claw.
+ An experiment in building an absolute minimalist claw for working with a collection of notes.
 
  # Requirements
 
-I take all of my notes in markdown. My vault of notes is organized in a way that matches my life and my interests (everything is in clean markdown notes vault format with liberal use of [[wikilinks]] to encourage a navigable knowledge graph). 
+Claude Code (or codex or gemini-cli) on top of an Obsidian notes vault enhanced with claw-like personal assistant capabilities -- proactive organization, short and long term memory, and a heartbeat.
 
-I want to use tools like claude/gemini-cli/codex not just for session programming but as an ongoing, learning, evolving assistant on top of my notes in a way that they can take advantage of their human curated knowledge and organizational constructs.
 
-So basically Claud Code and friends, but with claw-like personal assitant capabilities -- proactive organization, short and long term memory, and a heartbeat.
+# Architectural Principles
 
-# Architecture
-
-- Almost everything drives off of the BOOTSTRAP and evolves from there
-- Readable flat files in human scale directory structures whenever possible
 - Skill/trait driven development over features/code
-- Absolute minimum configs/plugins/abstractions up front. Instead, evolve to fit the purpose as you go
+- LLM interpretation over fragile code and abstrations
+- Purpose built over general purpose - provide architectural suggestions to the LLM and use it to implement concretely 
+- Drive off of the BOOTSTRAP and evolve from there
+
+For the notes:
+- Readable flat files in human scale directory structures whenever possible
+- Key off of the semantics of the human organized notes to drive the assistant's organizational strategy
 
  # Installation
 
@@ -28,21 +29,20 @@ Stricter kick off prompt (if the above doesn't work):
 
 # Manual Test Loop
 
-Use the synthetic fixture vault in `test_vault/` for repeatable manual smoke tests.
+Use the synthetic fixture vault in `test_vault/` to try it out first.
 
 1. Prepare test vault with current bootstrap files:
    `make testprep`
 2. Start your target CLI in `test_vault/` and prompt it to run bootstrap manually as above.
 3. Reset generated assistant artifacts between runs:
    `make testclean`
-4. Check current fixture state:
-   `make teststatus`
+
 
 # Heartbeat Runtime
 
-Heartbeat scheduling/runtime is intentionally zero-code in MVP:
+Heartbeat scheduling/runtime is zero-code, the LLM wakes up on beat and interprets the HEARTBEAT.md.
 
-- one cron entry wakes up whatever AI coding CLI you're using (claude, codex, gemini-cli) every 10 minutes
-- the CLI reads `_assistant/HEARTBEAT.md` and executes what is due now
+- one cron entry wakes up whatever AI coding CLI you're using every hour 
+- the CLI reads `_assistant/HEARTBEAT.md` and executes items that make sense based on when it woke up, what it last did, and the task granularity  
    - summary log: `_assistant/Memory/Events.md`
    - raw CLI wake log: `_assistant/logs/heartbeat-cli.log`
